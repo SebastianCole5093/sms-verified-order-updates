@@ -1,0 +1,20 @@
+{
+  "name": "sms-verified-order-updates",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/ecommerce_login.ts",
+    "demo": "tsx scripts/verify_order_demo.ts",
+    "test": "node --import tsx --test test/order_access.test.ts",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}
