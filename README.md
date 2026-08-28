@@ -1,12 +1,12 @@
 # Verify a shopper before revealing order updates
 
-Here's the rule we're enforcing: a phone number alone isn't identity. So checkout details, fulfillment state, the receipt, and the customer timeline only leave the service after an SMS code is accepted. Infrai gives you the two OTP calls behind one API and one `INFRAI_API_KEY`; the app keeps the authorization decision next to the order data, where you can test it without firing a real text.
+A phone number alone isn't identity. So we hold back checkout details, fulfillment state, receipt, and timeline until an SMS code checks out. Infrai gives the two OTP calls behind one API and one `INFRAI_API_KEY`. That keeps the auth decision next to the order data, easy to test without firing a real text.
 
-This is a teaching service, not a generic SMS wrapper. One route asks for a code. The second verifies it and returns a concrete order view. The small `order_access` module can be dropped behind an existing commerce controller.
+This is a teaching service, not a generic SMS wrapper. One route asks for a code. The second verifies it and returns a real order view. The small `order_access` module can slip behind your existing commerce controller.
 
 ## Run the verified path
 
-Grab Node 22 or newer. Install deps and start the service:
+Grab Node 22+. Install deps and boot the service:
 
 ```bash
 npm install
@@ -22,7 +22,7 @@ curl -X POST http://localhost:3000/login/code \
   -d '{"phone":"+14155550123"}'
 ```
 
-Send the received code back:
+Then submit the code you got:
 
 ```bash
 curl -X POST http://localhost:3000/login/verify \
@@ -30,27 +30,29 @@ curl -X POST http://localhost:3000/login/verify \
   -d '{"phone":"+14155550123","code":"123456"}'
 ```
 
-A successful response has `status: "order_released"` and includes `ORDER-1042`, its USD checkout total, shipped fulfillment, receipt `RCPT-1042`, and four chronological updates. A rejected code returns only the verification status. The order object never appears.
+On success, the response carries `status: "order_released"` and includes `ORDER-1042`, the USD checkout total, shipped fulfillment, receipt `RCPT-1042`, and four timeline entries. Reject the code and you get only verification status. No order object leaks.
 
-Want a direct script against the same domain module? Set `DEMO_PHONE` and `DEMO_CODE`, then run `npm run demo`.
+Want to call the domain module directly? Set `DEMO_PHONE` and `DEMO_CODE`, then run `npm run demo`.
 
 ## Why verification owns the release decision
 
-You might verify the code in a controller and let another handler fetch the order. That split makes it easy for future callers to skip the check. Here `verifyAndReadOrder` does both: reads the Infrai envelope, interprets an accepted verification, then looks up the order tied to the validated phone.
+You might verify in one controller and fetch the order in another. Bad idea. That split invites future callers to skip the check.
 
-The thin client makes explicit `POST` requests to `infrai.sms.otp` and `infrai.sms.verify`. It authenticates with the environment key, surfaces envelope errors, and retries rate-limited requests with the same idempotency key. Zod strict schemas reject bad E.164 numbers, malformed codes, and extra request props before any API call or order lookup.
+Here `verifyAndReadOrder` does both. It reads the Infrai envelope, sees an accepted verification, then looks up the order for that phone. One flow, one boundary.
 
-The in-memory order is sample commerce data. A real service should swap the map for its order repository and bind the verified phone to its own session. The boundary stays: customer data returns only from the accepted branch.
+The thin client sends explicit `POST` requests to `infrai.sms.otp` and `infrai.sms.verify`. It auths with the env key, surfaces envelope errors, and retries rate limits with the same idempotency key. Zod strict schemas block bad E.164 numbers, malformed codes, and extra fields before any API call or lookup.
+
+The in-memory order is just sample commerce data. Swap the map for your real repository and bind the phone to a session. Rule stays: customer data returns only from the accepted branch.
 
 ## Prove the business rule locally
 
-Run exactly:
+Run this:
 
 ```bash
 npm test
 ```
 
-The focused tests provide `phone: "+14155550123"` and a six-digit code. An accepted gateway result must expose checkout, shipped fulfillment, receipt, and ordered state history. A rejected result must equal `{ status: "verification_rejected" }`. An extra request field must fail Zod validation. Tests inject a deterministic gateway, so no API key or network needed.
+The tests give you `phone: "+14155550123"` and a six-digit code. Accept the gateway? You must see checkout, shipped fulfillment, receipt, and state history. Reject? Result equals `{ status: "verification_rejected" }`. Add an extra field and Zod blows up. They inject a fake gateway, so no API key or network needed.
 
 ## License
 
@@ -58,7 +60,7 @@ MIT
 
 ## Before this ships: SMS Verified Order Updates
 
-That was the happy path. Production checklist below. These details apply to SMS Verified Order Updates.
+We walked the happy path. Now the production checklist for SMS Verified Order Updates.
 
 **Account & key**
 
